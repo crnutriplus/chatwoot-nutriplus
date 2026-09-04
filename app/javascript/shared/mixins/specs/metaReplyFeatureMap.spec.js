@@ -20,9 +20,9 @@ describe('Meta reply-to feature map', () => {
 
   it('enables specific-message reply actions for Facebook and Instagram', () => {
     metaChannels.forEach(channelType => {
-      expect(
-        MIXIN_FEATURE_MAP[MIXIN_FEATURES.REPLY_TO_OUTGOING]
-      ).toContain(channelType);
+      expect(MIXIN_FEATURE_MAP[MIXIN_FEATURES.REPLY_TO_OUTGOING]).toContain(
+        channelType
+      );
       expect(
         COMPOSABLE_FEATURE_MAP[COMPOSABLE_FEATURES.REPLY_TO_OUTGOING]
       ).toContain(channelType);
@@ -31,9 +31,9 @@ describe('Meta reply-to feature map', () => {
 
   it('keeps unsupported channels excluded from outgoing reply-to actions', () => {
     unsupportedChannels.forEach(channelType => {
-      expect(
-        MIXIN_FEATURE_MAP[MIXIN_FEATURES.REPLY_TO_OUTGOING]
-      ).not.toContain(channelType);
+      expect(MIXIN_FEATURE_MAP[MIXIN_FEATURES.REPLY_TO_OUTGOING]).not.toContain(
+        channelType
+      );
       expect(
         COMPOSABLE_FEATURE_MAP[COMPOSABLE_FEATURES.REPLY_TO_OUTGOING]
       ).not.toContain(channelType);
