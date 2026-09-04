@@ -1,0 +1,45 @@
+name: Publish NutriPlus Meta Replies Image
+
+on:
+  push:
+    branches:
+      - feature/meta-native-message-replies
+    paths:
+      - .github/workflows/nutriplus-meta-replies-image.yml
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout validated Chatwoot source
+        uses: actions/checkout@v4
+        with:
+          ref: cbec5ebeac6a5b6433a7cdca715313c1e2ce7383
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish exact validated image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./docker/Dockerfile
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          tags: |
+            ghcr.io/crnutriplus/chatwoot-nutriplus:4.17.0-meta-replies
+            ghcr.io/crnutriplus/chatwoot-nutriplus:4.17.0-meta-replies-cbec5ebe
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
