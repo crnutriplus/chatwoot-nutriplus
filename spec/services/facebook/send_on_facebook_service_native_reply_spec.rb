@@ -1,11 +1,11 @@
 require 'rails_helper'
 
 describe Facebook::SendOnFacebookService do
-  let!(:account) { create(:account) }
+  let(:account) { create(:account) }
   let(:bot) { class_double(Facebook::Messenger::Bot).as_stubbed_const }
-  let!(:facebook_channel) { create(:channel_facebook_page, account: account) }
-  let!(:facebook_inbox) { create(:inbox, channel: facebook_channel, account: account) }
-  let!(:contact) { create(:contact, account: account) }
+  let(:facebook_channel) { create(:channel_facebook_page, account: account) }
+  let(:facebook_inbox) { create(:inbox, channel: facebook_channel, account: account) }
+  let(:contact) { create(:contact, account: account) }
   let(:contact_inbox) { create(:contact_inbox, contact: contact, inbox: facebook_inbox) }
   let(:conversation) { create(:conversation, contact: contact, inbox: facebook_inbox, contact_inbox: contact_inbox) }
 
