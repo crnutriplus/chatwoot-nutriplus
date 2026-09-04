@@ -34,6 +34,7 @@ class Instagram::BaseSendService < Base::SendOnChannelService
       }
     }
 
+    add_reply_to(params)
     merge_human_agent_tag(params)
   end
 
@@ -50,7 +51,14 @@ class Instagram::BaseSendService < Base::SendOnChannelService
       }
     }
 
+    add_reply_to(params)
     merge_human_agent_tag(params)
+  end
+
+  def add_reply_to(params)
+    return if message.content_attributes['in_reply_to_external_id'].blank?
+
+    params[:reply_to] = { mid: message.content_attributes['in_reply_to_external_id'] }
   end
 
   def process_response(response, message_content)
