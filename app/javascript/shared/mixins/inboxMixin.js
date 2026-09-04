@@ -18,6 +18,8 @@ export const INBOX_FEATURE_MAP = {
     INBOX_TYPES.API,
   ],
   [INBOX_FEATURES.REPLY_TO_OUTGOING]: [
+    INBOX_TYPES.FB,
+    INBOX_TYPES.INSTAGRAM,
     INBOX_TYPES.WEB,
     INBOX_TYPES.TWITTER,
     INBOX_TYPES.WHATSAPP,
@@ -92,7 +94,8 @@ export default {
       );
     },
     chatAdditionalAttributes() {
-      const { additional_attributes: additionalAttributes } = this.chat || {};
+      const { additional_attributes: additionalAttributes = {} } =
+        this.chat || {};
       return additionalAttributes || {};
     },
     isTwitterInboxTweet() {
