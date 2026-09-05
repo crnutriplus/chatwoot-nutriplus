@@ -34,7 +34,11 @@ class Instagram::BaseSendService < Base::SendOnChannelService
       }
     }
 
-    add_reply_to(params)
+    # Instagram Business Login uses graph.instagram.com. Unlike Messenger,
+    # this transport rejects the Messenger-style `reply_to: { mid: ... }`
+    # payload with Meta error 100. Keep Chatwoot's in_reply_to metadata so the
+    # quoted context remains visible to agents, but send the outbound Instagram
+    # message normally instead of failing delivery.
     merge_human_agent_tag(params)
   end
 
@@ -51,14 +55,7 @@ class Instagram::BaseSendService < Base::SendOnChannelService
       }
     }
 
-    add_reply_to(params)
     merge_human_agent_tag(params)
-  end
-
-  def add_reply_to(params)
-    return if message.content_attributes['in_reply_to_external_id'].blank?
-
-    params[:reply_to] = { mid: message.content_attributes['in_reply_to_external_id'] }
   end
 
   def process_response(response, message_content)
