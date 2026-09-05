@@ -8,7 +8,7 @@ describe Instagram::SendOnInstagramService do
   let(:contact_inbox) { create(:contact_inbox, contact: contact, inbox: instagram_inbox) }
   let(:conversation) { create(:conversation, contact: contact, inbox: instagram_inbox, contact_inbox: contact_inbox) }
 
-  it 'adds the canonical Meta mid when replying to a specific message' do
+  it 'keeps reply metadata in Chatwoot but omits unsupported reply_to from text payloads' do
     original_message = create(
       :message,
       message_type: :incoming,
@@ -31,16 +31,16 @@ describe Instagram::SendOnInstagramService do
     service.perform
 
     expect(reply.reload.content_attributes['in_reply_to_external_id']).to eq('mid.original')
-    expect(service).to have_received(:send_message).with(
-      hash_including(
+    expect(service).to have_received(:send_message) do |payload|
+      expect(payload).to include(
         recipient: { id: contact_inbox.source_id },
-        message: { text: reply.content },
-        reply_to: { mid: 'mid.original' }
+        message: { text: reply.content }
       )
-    )
+      expect(payload).not_to have_key(:reply_to)
+    end
   end
 
-  it 'adds the canonical Meta mid to attachment replies' do
+  it 'keeps reply metadata but omits unsupported reply_to from attachment payloads' do
     original_message = create(
       :message,
       message_type: :incoming,
@@ -67,11 +67,10 @@ describe Instagram::SendOnInstagramService do
 
     service.perform
 
-    expect(service).to have_received(:send_message).with(
-      hash_including(
-        message: hash_including(:attachment),
-        reply_to: { mid: 'mid.original' }
-      )
-    )
+    expect(reply.reload.content_attributes['in_reply_to_external_id']).to eq('mid.original')
+    expect(service).to have_received(:send_message) do |payload|
+      expect(payload[:message]).to include(:attachment)
+      expect(payload).not_to have_key(:reply_to)
+    end
   end
 end
