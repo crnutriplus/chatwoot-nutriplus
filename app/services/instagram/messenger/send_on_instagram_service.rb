@@ -8,6 +8,8 @@ class Instagram::Messenger::SendOnInstagramService < Instagram::BaseSendService
   # Deliver a message with the given payload.
   # @see https://developers.facebook.com/docs/messenger-platform/instagram/features/send-message
   def send_message(message_content)
+    add_reply_to(message_content)
+
     access_token = channel.page_access_token
     app_secret_proof = calculate_app_secret_proof(GlobalConfigService.load('FB_APP_SECRET', ''), access_token)
     query = { access_token: access_token }
@@ -20,6 +22,13 @@ class Instagram::Messenger::SendOnInstagramService < Instagram::BaseSendService
     )
 
     process_response(response, message_content)
+  end
+
+  def add_reply_to(params)
+    reply_to_external_id = message.content_attributes['in_reply_to_external_id']
+    return if reply_to_external_id.blank?
+
+    params[:reply_to] = { mid: reply_to_external_id }
   end
 
   def calculate_app_secret_proof(app_secret, access_token)
