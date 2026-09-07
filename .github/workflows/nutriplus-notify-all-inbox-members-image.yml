@@ -7,6 +7,7 @@ on:
     paths:
       - app/services/messages/new_message_notification_service.rb
       - spec/services/messages/new_message_notification_service_spec.rb
+      - config/initializers/active_job_log_arguments.rb
       - .github/workflows/nutriplus-notify-all-inbox-members-image.yml
   workflow_dispatch:
 
@@ -30,6 +31,7 @@ jobs:
         run: |
           ruby -c app/services/messages/new_message_notification_service.rb
           ruby -c spec/services/messages/new_message_notification_service_spec.rb
+          ruby -c config/initializers/active_job_log_arguments.rb
 
   build-and-push:
     needs: validate
