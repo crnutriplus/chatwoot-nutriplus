@@ -1,0 +1,71 @@
+name: Publish NutriPlus Notify All Inbox Image
+
+on:
+  push:
+    branches:
+      - feature/notify-all-inbox-members
+    paths:
+      - app/services/messages/new_message_notification_service.rb
+      - spec/services/messages/new_message_notification_service_spec.rb
+      - .github/workflows/nutriplus-notify-all-inbox-members-image.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout notification branch
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+
+      - name: Validate Ruby syntax
+        run: |
+          ruby -c app/services/messages/new_message_notification_service.rb
+          ruby -c spec/services/messages/new_message_notification_service_spec.rb
+
+  build-and-push:
+    needs: validate
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout notification branch
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/crnutriplus/chatwoot-nutriplus
+          tags: |
+            type=raw,value=4.17.0-notify-all-inbox-members
+            type=sha,prefix=4.17.0-notify-all-inbox-members-
+
+      - name: Build and publish image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./docker/Dockerfile
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
