@@ -154,6 +154,7 @@ Rails.application.routes.draw do
             end
           end
           resources :dashboard_apps, only: [:index, :show, :create, :update, :destroy]
+          post 'nutriplus/bootstrap', to: 'nutriplus/bootstrap#create'
           namespace :channels do
             resource :twilio_channel, only: [:create]
           end
