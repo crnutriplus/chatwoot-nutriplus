@@ -86,15 +86,47 @@ export default {
     this.themeObserver.disconnect();
   },
   methods: {
-    triggerEvent(event) {
+    async triggerEvent(event) {
       if (!this.isVisible) return;
-      if (event.data !== FETCH_INFO_MESSAGE) return;
+
+      if (event.data === FETCH_INFO_MESSAGE) {
+        const frameIndex = this.config.findIndex((_, index) => {
+          const frameElement = document.getElementById(this.getFrameId(index));
+          return frameElement?.contentWindow === event.source;
+        });
+
+        if (frameIndex >= 0) this.sendContext(frameIndex);
+        return;
+      }
+
+      if (event.data !== 'nutriplus-dashboard-app:ready') return;
 
       const frameIndex = this.config.findIndex((_, index) => {
+        if (!this.isNutriplusFrame(index)) return false;
+
         const frameElement = document.getElementById(this.getFrameId(index));
-        return frameElement?.contentWindow === event.source;
+
+        if (
+          !frameElement?.contentWindow ||
+          event.source !== frameElement.contentWindow
+        ) {
+          return false;
+        }
+
+        try {
+          const allowedOrigin = new URL(
+            window.chatwootConfig.nutriplusDashboardAppURL
+          ).origin;
+
+          return event.origin === allowedOrigin;
+        } catch {
+          return false;
+        }
       });
-      if (frameIndex >= 0) this.sendContext(frameIndex);
+
+      if (frameIndex >= 0) {
+        await this.bootstrapNutriplus(frameIndex);
+      }
     },
     onThemeChange() {
       const theme = getCurrentTheme();
@@ -162,9 +194,8 @@ export default {
         // Keep the Dashboard App usable if the NutriPlus bootstrap fails.
       }
     },
-    async onIframeLoad(index) {
+    onIframeLoad(index) {
       this.sendContext(index);
-      await this.bootstrapNutriplus(index);
     },
   },
 };

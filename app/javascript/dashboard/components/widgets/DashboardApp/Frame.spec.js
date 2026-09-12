@@ -51,14 +51,17 @@ describe('DashboardApp Frame NutriPlus bootstrap', () => {
     vi.restoreAllMocks();
   });
 
-  it('bootstraps the exact configured NutriPlus frame and posts the token only to its origin', async () => {
+  it('bootstraps only after trusted NutriPlus readiness and posts the token only to its origin', async () => {
     const postMessage = vi.fn();
-    vi.spyOn(document, 'getElementById').mockReturnValue({
-      contentWindow: { postMessage },
-    });
+    const contentWindow = { postMessage };
+    vi.spyOn(document, 'getElementById').mockReturnValue({ contentWindow });
     const wrapper = mountFrame([{ url: ALLOWED_URL }]);
 
-    await wrapper.vm.onIframeLoad(0);
+    await wrapper.vm.triggerEvent({
+      data: 'nutriplus-dashboard-app:ready',
+      origin: ALLOWED_ORIGIN,
+      source: contentWindow,
+    });
 
     expect(nutriplusAPI.bootstrap).toHaveBeenCalledWith(189);
     expect(postMessage).toHaveBeenCalledWith(
@@ -106,5 +109,46 @@ describe('DashboardApp Frame NutriPlus bootstrap', () => {
 
     expect(nutriplusAPI.bootstrap).not.toHaveBeenCalled();
     expect(postMessage).toHaveBeenCalledWith(expect.any(String), '*');
+  });
+  it('does not bootstrap NutriPlus merely because the iframe loaded', async () => {
+    const postMessage = vi.fn();
+    vi.spyOn(document, 'getElementById').mockReturnValue({
+      contentWindow: { postMessage },
+    });
+    const wrapper = mountFrame([{ url: ALLOWED_URL }]);
+
+    await wrapper.vm.onIframeLoad(0);
+
+    expect(nutriplusAPI.bootstrap).not.toHaveBeenCalled();
+  });
+
+  it('ignores NutriPlus readiness from an untrusted origin', async () => {
+    const postMessage = vi.fn();
+    const contentWindow = { postMessage };
+    vi.spyOn(document, 'getElementById').mockReturnValue({ contentWindow });
+    const wrapper = mountFrame([{ url: ALLOWED_URL }]);
+
+    await wrapper.vm.triggerEvent({
+      data: 'nutriplus-dashboard-app:ready',
+      origin: 'https://evil.example',
+      source: contentWindow,
+    });
+
+    expect(nutriplusAPI.bootstrap).not.toHaveBeenCalled();
+  });
+
+  it('ignores NutriPlus readiness from the wrong window source', async () => {
+    const postMessage = vi.fn();
+    const contentWindow = { postMessage };
+    vi.spyOn(document, 'getElementById').mockReturnValue({ contentWindow });
+    const wrapper = mountFrame([{ url: ALLOWED_URL }]);
+
+    await wrapper.vm.triggerEvent({
+      data: 'nutriplus-dashboard-app:ready',
+      origin: ALLOWED_ORIGIN,
+      source: {},
+    });
+
+    expect(nutriplusAPI.bootstrap).not.toHaveBeenCalled();
   });
 });
