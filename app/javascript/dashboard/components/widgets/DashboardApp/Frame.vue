@@ -1,4 +1,5 @@
 <script>
+import nutriplusAPI from 'dashboard/api/nutriplus';
 import LoadingState from 'dashboard/components/widgets/LoadingState.vue';
 
 export default {
@@ -62,20 +63,59 @@ export default {
     triggerEvent(event) {
       if (!this.isVisible) return;
       if (event.data === 'chatwoot-dashboard-app:fetch-info') {
-        this.onIframeLoad(0);
+        this.sendDashboardAppContext(0);
       }
     },
     getFrameId(index) {
       return `dashboard-app--frame-${this.position}-${index}`;
     },
-    onIframeLoad(index) {
-      // A possible alternative is to use ref instead of document.getElementById
-      // However, when ref is used together with v-for, the ref you get will be
-      // an array containing the child components mirroring the data source.
+    sendDashboardAppContext(index) {
       const frameElement = document.getElementById(this.getFrameId(index));
+      if (!frameElement?.contentWindow) return;
       const eventData = { event: 'appContext', data: this.dashboardAppContext };
       frameElement.contentWindow.postMessage(JSON.stringify(eventData), '*');
       this.iframeLoading = false;
+    },
+    isNutriplusFrame(index) {
+      const allowedURL = window.chatwootConfig?.nutriplusDashboardAppURL;
+      const frameURL = this.config[index]?.url;
+      return Boolean(allowedURL && frameURL === allowedURL);
+    },
+    async bootstrapNutriplus(index) {
+      if (!this.isNutriplusFrame(index)) return;
+
+      const frameElement = document.getElementById(this.getFrameId(index));
+      if (!frameElement?.contentWindow) return;
+
+      let targetOrigin;
+      try {
+        targetOrigin = new URL(window.chatwootConfig.nutriplusDashboardAppURL)
+          .origin;
+      } catch {
+        return;
+      }
+
+      const conversationId = this.currentChat?.id;
+      if (conversationId == null) return;
+
+      try {
+        const { token } = await nutriplusAPI.bootstrap(conversationId);
+        if (!token) return;
+        const eventData = {
+          event: 'nutriplus-dashboard-bootstrap',
+          data: { token },
+        };
+        frameElement.contentWindow.postMessage(
+          JSON.stringify(eventData),
+          targetOrigin
+        );
+      } catch {
+        // Keep the Dashboard App usable if the NutriPlus bootstrap fails.
+      }
+    },
+    async onIframeLoad(index) {
+      this.sendDashboardAppContext(index);
+      await this.bootstrapNutriplus(index);
     },
   },
 };
