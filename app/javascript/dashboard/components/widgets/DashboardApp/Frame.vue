@@ -60,10 +60,37 @@ export default {
     window.removeEventListener('message', this.triggerEvent);
   },
   methods: {
-    triggerEvent(event) {
+    async triggerEvent(event) {
       if (!this.isVisible) return;
       if (event.data === 'chatwoot-dashboard-app:fetch-info') {
         this.sendDashboardAppContext(0);
+        return;
+      }
+      if (event.data !== 'nutriplus-dashboard-app:ready') return;
+
+      const frameIndex = this.config.findIndex((_, index) => {
+        if (!this.isNutriplusFrame(index)) return false;
+
+        const frameElement = document.getElementById(this.getFrameId(index));
+        if (
+          !frameElement?.contentWindow ||
+          event.source !== frameElement.contentWindow
+        ) {
+          return false;
+        }
+
+        try {
+          const allowedOrigin = new URL(
+            window.chatwootConfig.nutriplusDashboardAppURL
+          ).origin;
+          return event.origin === allowedOrigin;
+        } catch {
+          return false;
+        }
+      });
+
+      if (frameIndex >= 0) {
+        await this.bootstrapNutriplus(frameIndex);
       }
     },
     getFrameId(index) {
@@ -113,9 +140,8 @@ export default {
         // Keep the Dashboard App usable if the NutriPlus bootstrap fails.
       }
     },
-    async onIframeLoad(index) {
+    onIframeLoad(index) {
       this.sendDashboardAppContext(index);
-      await this.bootstrapNutriplus(index);
     },
   },
 };
