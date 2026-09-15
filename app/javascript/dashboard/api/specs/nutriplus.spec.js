@@ -1,13 +1,20 @@
-import axios from 'axios';
 import nutriplusAPI from '../nutriplus';
 import ApiClient from '../ApiClient';
 
-vi.mock('axios');
-
 describe('#NutriplusAPI', () => {
+  let originalAxios;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    originalAxios = window.axios;
+    window.axios = {
+      post: vi.fn(),
+    };
     window.history.pushState({}, '', '/app/accounts/42/conversations/189');
+  });
+
+  afterEach(() => {
+    window.axios = originalAxios;
   });
 
   it('creates correct instance', () => {
@@ -19,11 +26,11 @@ describe('#NutriplusAPI', () => {
     const response = {
       data: { token: 'jwt-token', expires_in: 300 },
     };
-    axios.post.mockResolvedValue(response);
+    window.axios.post.mockResolvedValue(response);
 
     await expect(nutriplusAPI.bootstrap(189)).resolves.toEqual(response.data);
 
-    expect(axios.post).toHaveBeenCalledWith(
+    expect(window.axios.post).toHaveBeenCalledWith(
       '/api/v1/accounts/42/nutriplus/bootstrap',
       { conversation_id: 189 }
     );
