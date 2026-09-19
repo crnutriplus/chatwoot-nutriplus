@@ -155,6 +155,234 @@ describe Messages::Instagram::MessageBuilder do
       expect(message.attachments.count).to eq(0)
     end
 
+    it 'creates a location message from an Instagram generic template and syncs contact location' do
+      messaging = dm_params[:entry][0]['messaging'][0]
+      contact = create_instagram_contact_for_sender(messaging['sender']['id'], instagram_inbox)
+      contact.update!(custom_attributes: { 'customer_status' => 'active' })
+
+      messaging['timestamp'] = 1_789_851_158_285
+      messaging['message']['mid'] = 'instagram-location-message-id'
+      messaging['message'].delete('text')
+      messaging['message']['attachments'] = [
+        {
+          'type' => 'template',
+          'payload' => {
+            'generic' => {
+              'elements' => []
+            }
+          }
+        }
+      ]
+
+      media_url =
+        'https://external-yyz1-1.xx.fbcdn.net/static_map.php?v=2069&size=545x280&zoom=15&markers=10.06120560%252C-84.73201644&language=en'
+
+      stub_request(:get, %r{https://graph\.instagram\.com/.*/instagram-location-message-id\?.*})
+        .to_return(
+          status: 200,
+          body: {
+            attachments: {
+              data: [
+                {
+                  generic_template: {
+                    title: 'Live location',
+                    subtitle: 'Ever is sharing',
+                    media_url: media_url
+                  }
+                }
+              ]
+            }
+          }.to_json,
+          headers: { 'Content-Type' => 'application/json' }
+        )
+
+      described_class.new(messaging, instagram_inbox).perform
+
+      expect(instagram_inbox.reload.messages.count).to eq(1)
+
+      message = instagram_inbox.messages.first
+      expect(message.source_id).to eq('instagram-location-message-id')
+      expect(message.attachments.count).to eq(1)
+
+      location = message.attachments.first
+      expect(location.file_type).to eq('location')
+      expect(location.coordinates_lat).to be_within(0.00000001).of(10.06120560)
+      expect(location.coordinates_long).to be_within(0.00000001).of(-84.73201644)
+      expect(location.external_url).to eq(
+        'https://maps.google.com/?q=10.06120560,-84.73201644'
+      )
+      expect(location.fallback_title).to eq('Live location')
+
+      attributes = contact.reload.custom_attributes
+
+      expect(attributes['customer_status']).to eq('active')
+      expect(attributes['location_url']).to eq(
+        'https://maps.google.com/?q=10.06120560,-84.73201644'
+      )
+      expect(attributes['last_shared_latitude'].to_f).to be_within(0.00000001).of(10.06120560)
+      expect(attributes['last_shared_longitude'].to_f).to be_within(0.00000001).of(-84.73201644)
+      expect(attributes['last_shared_location_source']).to eq('instagram')
+      expect(attributes['last_shared_location_at']).to eq(
+        Time.zone.at(messaging['timestamp'] / 1000.0).iso8601(3)
+      )
+
+      expect(
+        a_request(:get, %r{https://graph\.instagram\.com/.*/instagram-location-message-id})
+          .with(
+            query: hash_including(
+              'fields' => 'attachments',
+              'access_token' => 'valid_instagram_token'
+            )
+          )
+      ).to have_been_made.once
+    end
+
+    it 'does not treat a non-location Instagram generic template as a location' do
+      messaging = dm_params[:entry][0]['messaging'][0]
+      contact = create_instagram_contact_for_sender(messaging['sender']['id'], instagram_inbox)
+
+      messaging['message']['mid'] = 'instagram-generic-template-id'
+      messaging['message'].delete('text')
+      messaging['message']['attachments'] = [
+        {
+          'type' => 'template',
+          'payload' => {
+            'generic' => {
+              'elements' => []
+            }
+          }
+        }
+      ]
+
+      stub_request(:get, %r{https://graph\.instagram\.com/.*/instagram-generic-template-id\?.*})
+        .to_return(
+          status: 200,
+          body: {
+            attachments: {
+              data: [
+                {
+                  generic_template: {
+                    title: 'Generic content',
+                    media_url: 'https://www.example.com/not-a-location.jpeg'
+                  }
+                }
+              ]
+            }
+          }.to_json,
+          headers: { 'Content-Type' => 'application/json' }
+        )
+
+      described_class.new(messaging, instagram_inbox).perform
+
+      expect(instagram_inbox.reload.messages.count).to eq(0)
+      expect(contact.reload.custom_attributes['location_url']).to be_nil
+    end
+
+    it 'rejects an Instagram location template with coordinates outside valid ranges' do
+      messaging = dm_params[:entry][0]['messaging'][0]
+      contact = create_instagram_contact_for_sender(messaging['sender']['id'], instagram_inbox)
+
+      messaging['message']['mid'] = 'instagram-invalid-location-id'
+      messaging['message'].delete('text')
+      messaging['message']['attachments'] = [
+        {
+          'type' => 'template',
+          'payload' => {
+            'generic' => {
+              'elements' => []
+            }
+          }
+        }
+      ]
+
+      stub_request(:get, %r{https://graph\.instagram\.com/.*/instagram-invalid-location-id\?.*})
+        .to_return(
+          status: 200,
+          body: {
+            attachments: {
+              data: [
+                {
+                  generic_template: {
+                    title: 'Live location',
+                    media_url: 'https://external.example.com/static_map.php?markers=999.00000000%252C-200.00000000'
+                  }
+                }
+              ]
+            }
+          }.to_json,
+          headers: { 'Content-Type' => 'application/json' }
+        )
+
+      described_class.new(messaging, instagram_inbox).perform
+
+      expect(instagram_inbox.reload.messages.count).to eq(0)
+      expect(contact.reload.custom_attributes['location_url']).to be_nil
+    end
+
+    it 'does not overwrite a newer contact location with an older Instagram location' do
+      messaging = dm_params[:entry][0]['messaging'][0]
+      contact = create_instagram_contact_for_sender(messaging['sender']['id'], instagram_inbox)
+
+      newer_location_at = '2030-01-01T00:00:00.000Z'
+
+      contact.update!(
+        custom_attributes: {
+          'customer_status' => 'active',
+          'location_url' => 'https://maps.google.com/?q=1.234,5.678',
+          'last_shared_latitude' => 1.234,
+          'last_shared_longitude' => 5.678,
+          'last_shared_location_at' => newer_location_at,
+          'last_shared_location_source' => 'instagram'
+        }
+      )
+
+      messaging['timestamp'] = 1_789_851_158_285
+      messaging['message']['mid'] = 'instagram-older-location-id'
+      messaging['message'].delete('text')
+      messaging['message']['attachments'] = [
+        {
+          'type' => 'template',
+          'payload' => {
+            'generic' => {
+              'elements' => []
+            }
+          }
+        }
+      ]
+
+      stub_request(:get, %r{https://graph\.instagram\.com/.*/instagram-older-location-id\?.*})
+        .to_return(
+          status: 200,
+          body: {
+            attachments: {
+              data: [
+                {
+                  generic_template: {
+                    title: 'Live location',
+                    media_url: 'https://external.example.com/static_map.php?markers=10.06120560%252C-84.73201644'
+                  }
+                }
+              ]
+            }
+          }.to_json,
+          headers: { 'Content-Type' => 'application/json' }
+        )
+
+      described_class.new(messaging, instagram_inbox).perform
+
+      expect(instagram_inbox.reload.messages.count).to eq(1)
+      expect(instagram_inbox.messages.first.attachments.first.file_type).to eq('location')
+
+      attributes = contact.reload.custom_attributes
+
+      expect(attributes['customer_status']).to eq('active')
+      expect(attributes['location_url']).to eq('https://maps.google.com/?q=1.234,5.678')
+      expect(attributes['last_shared_latitude'].to_f).to eq(1.234)
+      expect(attributes['last_shared_longitude'].to_f).to eq(5.678)
+      expect(attributes['last_shared_location_at']).to eq(newer_location_at)
+      expect(attributes['last_shared_location_source']).to eq('instagram')
+    end
+
     it 'does not create message for unsupported file type' do
       messaging = story_mention_params[:entry][0][:messaging][0]
       contact = create_instagram_contact_for_sender(messaging['sender']['id'], instagram_inbox)
