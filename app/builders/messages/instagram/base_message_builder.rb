@@ -193,7 +193,6 @@ class Messages::Instagram::BaseMessageBuilder < Messages::Messenger::MessageBuil
     unsupported_file_type?(attachments_type)
   end
 
-
   def prepare_location_attachment; end
 
   def sync_contact_location; end
