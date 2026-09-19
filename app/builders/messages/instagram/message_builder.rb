@@ -5,6 +5,29 @@ class Messages::Instagram::MessageBuilder < Messages::Instagram::BaseMessageBuil
 
   private
 
+  def prepare_location_attachment
+    attachment = location_message_service.location_attachment
+    return if attachment.blank?
+
+    @messaging[:message][:attachments] = [attachment]
+  end
+
+  def location_params(attachment)
+    location_message_service.location_params(attachment)
+  end
+
+  def sync_contact_location
+    location_message_service.sync_contact_location(message: @message, contact: contact)
+  end
+
+  def location_message_service
+    @location_message_service ||= Instagram::LocationMessageService.new(
+      messaging: @messaging,
+      inbox: @inbox,
+      outgoing_echo: @outgoing_echo
+    )
+  end
+
   def get_story_object_from_source_id(source_id)
     url = "#{base_uri}/#{source_id}?fields=story,from&access_token=#{@inbox.channel.access_token}"
 

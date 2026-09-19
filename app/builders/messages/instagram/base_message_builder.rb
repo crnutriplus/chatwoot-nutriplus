@@ -98,6 +98,8 @@ class Messages::Instagram::BaseMessageBuilder < Messages::Messenger::MessageBuil
     # Therefore, we need to check if the message already exists before creating it.
     return if message_already_exists?
 
+    prepare_location_attachment
+
     return if message_content.blank? && all_unsupported_files?
 
     @message = conversation.messages.create!(message_params)
@@ -106,6 +108,8 @@ class Messages::Instagram::BaseMessageBuilder < Messages::Messenger::MessageBuil
     attachments.each do |attachment|
       process_attachment(attachment)
     end
+
+    sync_contact_location
   end
 
   def save_story_id
@@ -188,6 +192,10 @@ class Messages::Instagram::BaseMessageBuilder < Messages::Messenger::MessageBuil
     attachments_type = attachments.pluck(:type).uniq.first
     unsupported_file_type?(attachments_type)
   end
+
+  def prepare_location_attachment; end
+
+  def sync_contact_location; end
 
   def handle_error(error)
     ChatwootExceptionTracker.new(error, account: @inbox.account).capture_exception
