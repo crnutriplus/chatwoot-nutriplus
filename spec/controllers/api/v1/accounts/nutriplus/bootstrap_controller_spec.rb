@@ -6,7 +6,7 @@ RSpec.describe 'Nutriplus Bootstrap', type: :request do
   let(:secret) { 'nutriplus-test-secret-that-is-only-used-in-request-specs' }
 
   around do |example|
-    original_secret = ENV['NUTRIPLUS_DASHBOARD_APP_SECRET']
+    original_secret = ENV.fetch('NUTRIPLUS_DASHBOARD_APP_SECRET', nil)
     ENV['NUTRIPLUS_DASHBOARD_APP_SECRET'] = secret
     example.run
   ensure
@@ -33,7 +33,7 @@ RSpec.describe 'Nutriplus Bootstrap', type: :request do
       expect(response).to have_http_status(:unauthorized)
     end
 
-    it 'returns a short-lived signed token for an agent with conversation access' do
+    it 'returns a short-lived signed token for an agent with conversation access', :aggregate_failures do
       agent = create(:user, account: account, role: :agent)
       create(:inbox_member, user: agent, inbox: conversation.inbox)
 
