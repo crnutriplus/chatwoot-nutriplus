@@ -193,65 +193,10 @@ class Messages::Instagram::BaseMessageBuilder < Messages::Messenger::MessageBuil
     unsupported_file_type?(attachments_type)
   end
 
-  def location_params(attachment)
-    coordinates = attachment.dig('payload', 'coordinates') || {}
 
-    {
-      external_url: attachment['url'],
-      coordinates_lat: coordinates['lat'],
-      coordinates_long: coordinates['long'],
-      fallback_title: attachment['title']
-    }
-  end
+  def prepare_location_attachment; end
 
-  def sync_contact_location
-    return if @outgoing_echo
-
-    location = @message.attachments.find_by(file_type: :location)
-    return if location.blank?
-
-    shared_at = shared_location_timestamp
-    return if newer_location_already_stored?(shared_at)
-
-    attributes = (contact.custom_attributes || {}).merge(
-      'location_url' => location.external_url,
-      'last_shared_latitude' => location.coordinates_lat,
-      'last_shared_longitude' => location.coordinates_long,
-      'last_shared_location_at' => shared_at.iso8601(3),
-      'last_shared_location_source' => 'instagram'
-    )
-
-    contact.update!(custom_attributes: attributes)
-  end
-
-  def shared_location_timestamp
-    raw_timestamp = @messaging[:timestamp]
-    return Time.current if raw_timestamp.blank?
-
-    if raw_timestamp.to_s.match?(/\A\d+(?:\.\d+)?\z/)
-      timestamp = Float(raw_timestamp)
-      timestamp /= 1000.0 if timestamp > 10_000_000_000
-      Time.zone.at(timestamp)
-    else
-      Time.zone.parse(raw_timestamp.to_s)
-    end
-  rescue ArgumentError, TypeError
-    Time.current
-  end
-
-  def newer_location_already_stored?(shared_at)
-    stored_at = contact.custom_attributes&.[]('last_shared_location_at')
-    return false if stored_at.blank?
-
-    Time.zone.parse(stored_at.to_s) > shared_at
-  rescue ArgumentError, TypeError
-    false
-  end
-
-  def prepare_location_attachment
-    # Implemented by Instagram channel builders that can enrich
-    # generic templates into native Chatwoot location attachments.
-  end
+  def sync_contact_location; end
 
   def handle_error(error)
     ChatwootExceptionTracker.new(error, account: @inbox.account).capture_exception
