@@ -32,6 +32,30 @@ describe Whatsapp::IncomingMessageService do
         expect(whatsapp_channel.inbox.messages.first.content).to eq('Test')
       end
 
+      it 'passes incoming Waze text to the shared location service' do
+        waze_text = 'Sigue mi viaje en Waze: https://www.waze.com/ul?a=share_drive&sd=Valid_Token-123&env=row'
+        waze_params = params.deep_dup
+        waze_params[:messages].first[:id] = 'wamid.waze-share-drive-hook'
+        waze_params[:messages].first[:text][:body] = waze_text
+        waze_service = instance_double(SharedLocations::WazeMessageService)
+
+        allow(waze_service).to receive(:perform)
+        allow(SharedLocations::WazeMessageService).to receive(:new).and_return(waze_service)
+
+        described_class.new(inbox: whatsapp_channel.inbox, params: waze_params).perform
+
+        message = whatsapp_channel.inbox.messages.find_by!(source_id: 'wamid.waze-share-drive-hook')
+        contact = whatsapp_channel.inbox.contacts.first
+
+        expect(SharedLocations::WazeMessageService).to have_received(:new).with(
+          message: message,
+          contact: contact,
+          content: waze_text,
+          shared_at: waze_params[:messages].first[:timestamp]
+        )
+        expect(waze_service).to have_received(:perform).once
+      end
+
       it 'appends to last conversation when if conversation already exists' do
         contact_inbox = create(:contact_inbox, inbox: whatsapp_channel.inbox, source_id: params[:messages].first[:from])
         2.times.each { create(:conversation, inbox: whatsapp_channel.inbox, contact_inbox: contact_inbox, contact: contact_inbox.contact) }

@@ -25,6 +25,8 @@ class Messages::Facebook::MessageBuilder < Messages::Messenger::MessageBuilder
       build_contact_inbox
       build_message
     end
+
+    process_waze_shared_location
   rescue Koala::Facebook::AuthenticationError => e
     Rails.logger.warn("Facebook authentication error for inbox: #{@inbox.id} with error: #{e.message}")
     Rails.logger.error e
@@ -35,6 +37,17 @@ class Messages::Facebook::MessageBuilder < Messages::Messenger::MessageBuilder
   end
 
   private
+
+  def process_waze_shared_location
+    return if @message.blank?
+
+    SharedLocations::WazeMessageService.new(
+      message: @message,
+      contact: @contact_inbox.contact,
+      content: response.content,
+      shared_at: response.time_stamp
+    ).perform
+  end
 
   def build_contact_inbox
     @contact_inbox = ::ContactInboxWithContactBuilder.new(

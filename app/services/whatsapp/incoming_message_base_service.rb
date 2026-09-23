@@ -1,6 +1,7 @@
 # Mostly modeled after the intial implementation of the service based on 360 Dialog
 # https://docs.360dialog.com/whatsapp-api/whatsapp-api/media
 # https://developers.facebook.com/docs/whatsapp/api/media/
+# rubocop:disable Metrics/ClassLength
 class Whatsapp::IncomingMessageBaseService
   include ::Whatsapp::IncomingMessageServiceHelpers
   include ::Whatsapp::IncomingMessageIdentifierHelper
@@ -44,6 +45,21 @@ class Whatsapp::IncomingMessageBaseService
       set_conversation
       create_messages
     end
+
+    process_waze_shared_location
+  end
+
+  def process_waze_shared_location
+    return if @message.blank?
+
+    message = messages_data.first
+
+    SharedLocations::WazeMessageService.new(
+      message: @message,
+      contact: @contact,
+      content: message_content(message),
+      shared_at: message[:timestamp]
+    ).perform
   end
 
   def process_statuses
@@ -235,3 +251,4 @@ class Whatsapp::IncomingMessageBaseService
 end
 
 Whatsapp::IncomingMessageBaseService.prepend_mod_with('Whatsapp::IncomingMessageBaseService')
+# rubocop:enable Metrics/ClassLength
