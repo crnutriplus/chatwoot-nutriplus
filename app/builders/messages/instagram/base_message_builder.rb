@@ -14,11 +14,24 @@ class Messages::Instagram::BaseMessageBuilder < Messages::Messenger::MessageBuil
     ActiveRecord::Base.transaction do
       build_message
     end
+
+    process_waze_shared_location
   rescue StandardError => e
     handle_error(e)
   end
 
   private
+
+  def process_waze_shared_location
+    return if @message.blank?
+
+    SharedLocations::WazeMessageService.new(
+      message: @message,
+      contact: contact,
+      content: message_content,
+      shared_at: @messaging[:timestamp]
+    ).perform
+  end
 
   def attachments
     @messaging[:message][:attachments] || {}

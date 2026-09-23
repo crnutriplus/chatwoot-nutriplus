@@ -86,6 +86,29 @@ describe Messages::Instagram::MessageBuilder do
       expect(message.content).to eq('This is the first message from the customer')
     end
 
+    it 'passes incoming Waze text to the shared location service' do
+      messaging = dm_params[:entry][0]['messaging'][0]
+      waze_text = 'Sigue mi viaje en Waze: https://www.waze.com/ul?a=share_drive&sd=Valid_Token-123&env=row'
+      messaging['message']['text'] = waze_text
+      contact = create_instagram_contact_for_sender(messaging['sender']['id'], instagram_inbox)
+      waze_service = instance_double(SharedLocations::WazeMessageService)
+
+      allow(waze_service).to receive(:perform)
+      allow(SharedLocations::WazeMessageService).to receive(:new).and_return(waze_service)
+
+      described_class.new(messaging, instagram_inbox).perform
+
+      message = instagram_inbox.reload.messages.find_by!(source_id: messaging['message']['mid'])
+
+      expect(SharedLocations::WazeMessageService).to have_received(:new).with(
+        message: message,
+        contact: contact,
+        content: waze_text,
+        shared_at: messaging['timestamp']
+      )
+      expect(waze_service).to have_received(:perform).once
+    end
+
     it 'discard echo message already sent by chatwoot' do
       messaging = dm_params[:entry][0]['messaging'][0]
       contact = create_instagram_contact_for_sender(messaging['sender']['id'], instagram_inbox)

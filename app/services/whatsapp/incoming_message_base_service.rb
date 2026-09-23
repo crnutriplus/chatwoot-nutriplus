@@ -44,6 +44,21 @@ class Whatsapp::IncomingMessageBaseService
       set_conversation
       create_messages
     end
+
+    process_waze_shared_location
+  end
+
+  def process_waze_shared_location
+    return if @message.blank?
+
+    message = messages_data.first
+
+    SharedLocations::WazeMessageService.new(
+      message: @message,
+      contact: @contact,
+      content: message_content(message),
+      shared_at: message[:timestamp]
+    ).perform
   end
 
   def process_statuses
