@@ -103,6 +103,7 @@ class Messages::Instagram::BaseMessageBuilder < Messages::Messenger::MessageBuil
     return if message_content.blank? && all_unsupported_files?
 
     @message = conversation.messages.create!(message_params)
+    persist_meta_referral
     save_story_id
 
     attachments.each do |attachment|
@@ -173,7 +174,26 @@ class Messages::Instagram::BaseMessageBuilder < Messages::Messenger::MessageBuil
 
     params[:content_attributes][:external_echo] = true if @outgoing_echo
     params[:content_attributes][:is_unsupported] = true if message_is_unsupported?
+    params[:content_attributes][:referral] = meta_referral if !@outgoing_echo && meta_referral.present?
     params
+  end
+
+  def meta_referral
+    Nutriplus::MetaReferralAttributionService.sanitize(
+      @messaging[:referral],
+      channel: :instagram
+    )
+  end
+
+  def persist_meta_referral
+    return if @outgoing_echo
+
+    Nutriplus::MetaReferralAttributionService.capture(
+      conversation: conversation,
+      contact: contact,
+      referral: @messaging[:referral],
+      channel: :instagram
+    )
   end
 
   def message_already_exists?

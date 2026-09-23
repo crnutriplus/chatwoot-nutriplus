@@ -46,6 +46,7 @@ class Messages::Facebook::MessageBuilder < Messages::Messenger::MessageBuilder
 
   def build_message
     @message = conversation.messages.create!(message_params)
+    persist_meta_referral
 
     @attachments.each do |attachment|
       process_attachment(attachment)
@@ -119,6 +120,7 @@ class Messages::Facebook::MessageBuilder < Messages::Messenger::MessageBuilder
       in_reply_to_external_id: response.in_reply_to_external_id
     }
     content_attributes[:external_echo] = true if @outgoing_echo
+    content_attributes[:referral] = response.referral if !@outgoing_echo && response.referral.present?
 
     {
       account_id: conversation.account_id,
@@ -130,6 +132,16 @@ class Messages::Facebook::MessageBuilder < Messages::Messenger::MessageBuilder
       content_attributes: content_attributes,
       sender: @outgoing_echo ? nil : @contact_inbox.contact
     }
+  end
+
+  def persist_meta_referral
+    return if @outgoing_echo || response.referral.blank?
+
+    Nutriplus::MetaReferralAttributionService.new(
+      conversation: conversation,
+      contact: @contact_inbox.contact,
+      referral: response.referral
+    ).perform
   end
 
   def process_contact_params_result(result)

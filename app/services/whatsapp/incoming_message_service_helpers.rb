@@ -92,6 +92,17 @@ module Whatsapp::IncomingMessageServiceHelpers
     message[:referral]&.to_h&.deep_stringify_keys || {}
   end
 
+  def persist_meta_referral_attribution(message)
+    return if outgoing_echo
+
+    Nutriplus::MetaReferralAttributionService.capture(
+      conversation: @conversation,
+      contact: @contact,
+      referral: referral_attributes(message),
+      channel: :whatsapp
+    )
+  end
+
   def find_message_by_source_id(source_id)
     return unless source_id
 
