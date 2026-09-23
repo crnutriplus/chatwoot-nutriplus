@@ -1,4 +1,4 @@
-require "rails_helper"
+require 'rails_helper'
 
 RSpec.describe SharedLocations::WazeMessageService do
   let(:conversation) { create(:conversation) }
@@ -12,7 +12,7 @@ RSpec.describe SharedLocations::WazeMessageService do
       conversation: conversation,
       sender: contact,
       message_type: :incoming,
-      content: "Sigue mi viaje en Waze"
+      content: 'Sigue mi viaje en Waze'
     )
   end
 
@@ -20,10 +20,10 @@ RSpec.describe SharedLocations::WazeMessageService do
     {
       latitude: 9.978192,
       longitude: -84.764175,
-      title: "Farmacia Carrizal",
-      city: "Carrizal, Puntarenas",
-      map_url: "https://maps.google.com/?q=9.978192,-84.764175",
-      resolution_source: "calculated_location"
+      title: 'Farmacia Carrizal',
+      city: 'Carrizal, Puntarenas',
+      map_url: 'https://maps.google.com/?q=9.978192,-84.764175',
+      resolution_source: 'calculated_location'
     }
   end
 
@@ -45,11 +45,11 @@ RSpec.describe SharedLocations::WazeMessageService do
       message: message,
       contact: contact,
       content: message.content,
-      shared_at: Time.zone.parse("2026-09-22T04:00:00Z")
+      shared_at: Time.zone.parse('2026-09-22T04:00:00Z')
     ).perform
   end
 
-  it "creates one native location attachment" do
+  it 'creates one native location attachment' do
     perform
 
     attachment = message.reload.attachments.find_by(file_type: :location)
@@ -58,13 +58,13 @@ RSpec.describe SharedLocations::WazeMessageService do
     expect(attachment.coordinates_lat).to eq(9.978192)
     expect(attachment.coordinates_long).to eq(-84.764175)
     expect(attachment.external_url).to eq(
-      "https://maps.google.com/?q=9.978192,-84.764175"
+      'https://maps.google.com/?q=9.978192,-84.764175'
     )
-    expect(attachment.fallback_title).to eq("Farmacia Carrizal")
+    expect(attachment.fallback_title).to eq('Farmacia Carrizal')
   end
 
-  it "truncates long fallback titles to 255 characters" do
-    long_title = "Destino Waze " * 40
+  it 'truncates long fallback titles to 255 characters' do
+    long_title = 'Destino Waze ' * 40
     location[:title] = long_title
 
     perform
@@ -75,7 +75,7 @@ RSpec.describe SharedLocations::WazeMessageService do
     expect(attachment.fallback_title.length).to eq(255)
   end
 
-  it "syncs the contact with Waze as the location source" do
+  it 'syncs the contact with Waze as the location source' do
     sync_service = instance_double(
       SharedLocations::ContactLocationSyncService,
       perform: true
@@ -87,7 +87,7 @@ RSpec.describe SharedLocations::WazeMessageService do
         contact: contact,
         location: instance_of(Attachment),
         shared_at: instance_of(ActiveSupport::TimeWithZone),
-        source: "waze"
+        source: 'waze'
       )
       .and_return(sync_service)
 
@@ -96,7 +96,7 @@ RSpec.describe SharedLocations::WazeMessageService do
     perform
   end
 
-  it "does not create duplicate location attachments" do
+  it 'does not create duplicate location attachments' do
     perform
     perform
 
@@ -105,15 +105,15 @@ RSpec.describe SharedLocations::WazeMessageService do
     ).to eq(1)
   end
 
-  it "leaves the original message intact when Waze cannot resolve" do
+  it 'leaves the original message intact when Waze cannot resolve' do
     allow(resolver).to receive(:perform).and_return(nil)
 
     expect { perform }.not_to change(Attachment, :count)
 
-    expect(message.reload.content).to eq("Sigue mi viaje en Waze")
+    expect(message.reload.content).to eq('Sigue mi viaje en Waze')
   end
 
-  it "ignores outgoing messages" do
+  it 'ignores outgoing messages' do
     allow(message).to receive(:incoming?).and_return(false)
     expect(resolver).not_to receive(:perform)
 

@@ -7,20 +7,12 @@ class SharedLocations::WazeMessageService
   end
 
   def perform
-    return if @message.blank? || @contact.blank?
-    return unless @message.incoming?
-    return if @content.blank?
-    return if location_attachment_exists?
+    return unless enrichable?
 
     location = resolve_location
     return if location.blank?
 
-    @message.with_lock do
-      return if location_attachment_exists?
-
-      attachment = create_location_attachment(location)
-      sync_contact_location(attachment)
-    end
+    attach_location(location)
   rescue StandardError => e
     log_exception(e)
     nil
@@ -28,8 +20,25 @@ class SharedLocations::WazeMessageService
 
   private
 
+  def enrichable?
+    @message.present? &&
+      @contact.present? &&
+      @message.incoming? &&
+      @content.present? &&
+      !location_attachment_exists?
+  end
+
+  def attach_location(location)
+    @message.with_lock do
+      return if location_attachment_exists?
+
+      attachment = create_location_attachment(location)
+      sync_contact_location(attachment)
+    end
+  end
+
   def location_attachment_exists?
-    @message.attachments.where(file_type: :location).exists?
+    @message.attachments.exists?(file_type: :location)
   end
 
   def resolve_location
@@ -55,7 +64,7 @@ class SharedLocations::WazeMessageService
       contact: @contact,
       location: attachment,
       shared_at: @shared_at,
-      source: "waze"
+      source: 'waze'
     ).perform
   end
 

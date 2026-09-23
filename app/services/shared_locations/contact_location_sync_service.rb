@@ -40,7 +40,7 @@ class SharedLocations::ContactLocationSyncService
   end
 
   def newer_location_already_stored?(shared_at)
-    stored_at = @contact.custom_attributes&.[]("last_shared_location_at")
+    stored_at = @contact.custom_attributes&.[]('last_shared_location_at')
     return false if stored_at.blank?
 
     Time.zone.parse(stored_at.to_s) > shared_at
@@ -57,11 +57,11 @@ class SharedLocations::ContactLocationSyncService
       "https://maps.google.com/?q=#{latitude},#{longitude}"
 
     (@contact.custom_attributes || {}).merge(
-      "location_url" => location_url,
-      "last_shared_latitude" => latitude,
-      "last_shared_longitude" => longitude,
-      "last_shared_location_at" => shared_at.iso8601(3),
-      "last_shared_location_source" => @source
+      'location_url' => location_url,
+      'last_shared_latitude' => latitude,
+      'last_shared_longitude' => longitude,
+      'last_shared_location_at' => shared_at.iso8601(3),
+      'last_shared_location_source' => @source
     )
   end
 end
