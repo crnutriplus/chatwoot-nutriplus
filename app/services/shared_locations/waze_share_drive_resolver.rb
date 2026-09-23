@@ -25,23 +25,13 @@ class SharedLocations::WazeShareDriveResolver
 
   def share_drive_params
     urls.each do |uri|
-      query = begin
-        URI.decode_www_form(uri.query.to_s).to_h
-      rescue ArgumentError
-        next
-      end
+      query = decoded_query(uri)
+      next if query.blank?
 
-      token =
-        if query["a"] == "share_drive"
-          query["sd"]
-        elsif uri.path.to_s.include?("/live-map/meeting")
-          query["token"]
-        end
+      token = share_drive_token(uri, query)
+      next if token.blank? || !token.to_s.match?(TOKEN_PATTERN)
 
-      next if token.blank?
-      next unless token.to_s.match?(TOKEN_PATTERN)
-
-      env = normalize_env(query["env"])
+      env = normalize_env(query['env'])
       next if env.blank?
 
       return { token: token, env: env }
@@ -50,9 +40,22 @@ class SharedLocations::WazeShareDriveResolver
     nil
   end
 
+  def decoded_query(uri)
+    URI.decode_www_form(uri.query.to_s).to_h
+  rescue ArgumentError
+    nil
+  end
+
+  def share_drive_token(uri, query)
+    return query['sd'] if query['a'] == 'share_drive'
+    return query['token'] if uri.path.to_s.include?('/live-map/meeting')
+
+    nil
+  end
+
   def urls
     CGI.unescapeHTML(@content).scan(%r{https?://[^\s<>"']+}).filter_map do |candidate|
-      uri = URI.parse(candidate.gsub(/[)\],.!?;:]+\z/, ""))
+      uri = URI.parse(candidate.gsub(/[)\],.!?;:]+\z/, ''))
       next unless waze_host?(uri.host)
 
       uri
@@ -63,12 +66,12 @@ class SharedLocations::WazeShareDriveResolver
 
   def waze_host?(host)
     normalized = host.to_s.downcase
-    normalized == "waze.com" || normalized.end_with?(".waze.com")
+    normalized == 'waze.com' || normalized.end_with?('.waze.com')
   end
 
   def normalize_env(env)
     value = env.to_s.downcase
-    value = "na" if %w[usa us].include?(value)
+    value = 'na' if %w[usa us].include?(value)
 
     GEO_ENVS.include?(value) ? value : nil
   end
@@ -82,9 +85,9 @@ class SharedLocations::WazeShareDriveResolver
         _: (Time.current.to_f * 1000).to_i
       },
       headers: {
-        "Accept" => "application/json, text/plain, */*",
-        "User-Agent" => "Mozilla/5.0",
-        "Referer" => "https://www.waze.com/live-map/meeting"
+        'Accept' => 'application/json, text/plain, */*',
+        'User-Agent' => 'Mozilla/5.0',
+        'Referer' => 'https://www.waze.com/live-map/meeting'
       },
       timeout: REQUEST_TIMEOUT
     )
@@ -92,7 +95,7 @@ class SharedLocations::WazeShareDriveResolver
     return log_http_error(response) unless response.success?
 
     parsed = JSON.parse(response.body).with_indifferent_access
-    parsed[:status] == "ok" ? parsed : nil
+    parsed[:status] == 'ok' ? parsed : nil
   end
 
   def destination_from_response(response)
@@ -105,7 +108,7 @@ class SharedLocations::WazeShareDriveResolver
       long: location[:longitude],
       name: location[:name],
       city: location[:city],
-      source: "calculated_location"
+      source: 'calculated_location'
     )
   end
 
@@ -117,7 +120,7 @@ class SharedLocations::WazeShareDriveResolver
     lat = route[-1]
     return unless valid_coordinates?(lat, long)
 
-    build_result(lat: lat, long: long, name: nil, city: nil, source: "route_endpoint")
+    build_result(lat: lat, long: long, name: nil, city: nil, source: 'route_endpoint')
   end
 
   def build_result(lat:, long:, name:, city:, source:)
@@ -129,7 +132,7 @@ class SharedLocations::WazeShareDriveResolver
       longitude: longitude,
       name: name.presence,
       city: city.presence,
-      title: name.presence || city.presence || "Waze destination",
+      title: name.presence || city.presence || 'Waze destination',
       map_url: "https://maps.google.com/?q=#{latitude},#{longitude}",
       resolution_source: source
     }
