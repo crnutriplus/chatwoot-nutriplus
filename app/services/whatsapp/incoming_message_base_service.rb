@@ -187,7 +187,7 @@ class Whatsapp::IncomingMessageBaseService
       sender: outgoing_echo ? nil : @contact,
       source_id: (source_id || message[:id]).to_s,
       content_attributes: message_content_attributes(content_attributes_source)
-    )
+    ).tap { persist_meta_referral_attribution(content_attributes_source) }
   end
 
   def message_content_attributes(message)

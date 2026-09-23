@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class Integrations::Facebook::MessageParser
+  REFERRAL_KEYS = %w[ad_id source type].freeze
+
   def initialize(response_json)
     @response = JSON.parse(response_json)
     @messaging = @response['messaging'] || @response['standby']
@@ -66,6 +68,16 @@ class Integrations::Facebook::MessageParser
 
   def in_reply_to_external_id
     @messaging.dig('message', 'reply_to', 'mid')
+  end
+
+  def referral
+    value = @messaging['referral']
+    return {} unless value.is_a?(Hash)
+
+    REFERRAL_KEYS.each_with_object({}) do |key, result|
+      item = value[key].to_s.strip
+      result[key] = item if item.present?
+    end
   end
 end
 
