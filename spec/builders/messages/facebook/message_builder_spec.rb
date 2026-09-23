@@ -32,6 +32,45 @@ describe Messages::Facebook::MessageBuilder do
       expect(message.content).to eq('facebook message')
     end
 
+    it 'passes incoming Waze text to the shared location service' do
+      waze_text = 'Sigue mi viaje en Waze: https://www.waze.com/ul?a=share_drive&sd=Valid_Token-123&env=row'
+      waze_message_object = {
+        messaging: {
+          sender: { id: '3383290475046708' },
+          recipient: { id: facebook_channel.page_id },
+          timestamp: 1_789_851_158_285,
+          message: { mid: 'm_waze_share_drive', text: waze_text }
+        }
+      }.to_json
+      waze_message = Integrations::Facebook::MessageParser.new(waze_message_object)
+      waze_service = instance_double(SharedLocations::WazeMessageService)
+
+      allow(Koala::Facebook::API).to receive(:new).and_return(fb_object)
+      allow(fb_object).to receive(:get_object).and_return(
+        {
+          first_name: 'Jane',
+          last_name: 'Dae',
+          account_id: facebook_channel.inbox.account_id,
+          profile_pic: 'https://chatwoot-assets.local/sample.png'
+        }.with_indifferent_access
+      )
+      allow(waze_service).to receive(:perform)
+      allow(SharedLocations::WazeMessageService).to receive(:new).and_return(waze_service)
+
+      described_class.new(waze_message, facebook_channel.inbox).perform
+
+      message = facebook_channel.inbox.messages.find_by!(source_id: 'm_waze_share_drive')
+      contact = facebook_channel.inbox.contacts.first
+
+      expect(SharedLocations::WazeMessageService).to have_received(:new).with(
+        message: message,
+        contact: contact,
+        content: waze_text,
+        shared_at: waze_message.time_stamp
+      )
+      expect(waze_service).to have_received(:perform).once
+    end
+
     it 'increments channel authorization_error_count when error is thrown' do
       allow(Koala::Facebook::API).to receive(:new).and_return(fb_object)
       allow(fb_object).to receive(:get_object).and_raise(Koala::Facebook::AuthenticationError.new(500, 'Error validating access token'))
