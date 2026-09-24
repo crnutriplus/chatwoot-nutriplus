@@ -16,6 +16,7 @@ permissions:
 
 jobs:
   deployment_check:
+    if: ${{ vars.HEROKU_REVIEW_APPS_ENABLED == 'true' }}
     name: Check Deployment
     runs-on: ubuntu-latest
     steps:

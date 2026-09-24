@@ -12,6 +12,7 @@ permissions:
 
 jobs:
   test-build:
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.DOCKER_BUILD_ON_PR == 'true' }}
     strategy:
       fail-fast: false
       matrix:
