@@ -33,7 +33,7 @@ class SharedLocations::WazeMessageService
       return if location_attachment_exists?
 
       attachment = create_location_attachment(location)
-      sync_contact_location(attachment)
+      sync_contact_location(attachment, location)
     end
   end
 
@@ -42,7 +42,7 @@ class SharedLocations::WazeMessageService
   end
 
   def resolve_location
-    SharedLocations::WazeShareDriveResolver.new(
+    SharedLocations::LocationResolver.new(
       content: @content,
       account_id: @message.account_id
     ).perform
@@ -59,13 +59,31 @@ class SharedLocations::WazeMessageService
     )
   end
 
-  def sync_contact_location(attachment)
+  def sync_contact_location(attachment, location)
+    source = contact_location_source(location)
+    return if source.blank?
+
     SharedLocations::ContactLocationSyncService.new(
       contact: @contact,
       location: attachment,
       shared_at: @shared_at,
-      source: 'waze'
+      source: source
     ).perform
+  end
+
+  def contact_location_source(location)
+    return 'waze' if location[:resolution_provider] == 'waze'
+
+    channel_location_source
+  end
+
+  def channel_location_source
+    channel_type = @message.inbox&.channel_type.to_s
+
+    return 'instagram' if channel_type == 'Channel::Instagram'
+    return 'whatsapp' if channel_type.match?(/Whatsapp/i)
+
+    nil
   end
 
   def log_exception(error)
