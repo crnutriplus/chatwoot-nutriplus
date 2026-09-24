@@ -6,6 +6,7 @@ class Messages::NewMessageNotificationService
 
     notify_conversation_assignee
     notify_participating_users
+    notify_inbox_members_for_incoming_message
   end
 
   private
@@ -43,8 +44,25 @@ class Messages::NewMessageNotificationService
     end
   end
 
-  # The user could already have been notified via a mention or via assignment
-  # So we don't need to notify them again
+  def notify_inbox_members_for_incoming_message
+    return unless message.incoming?
+
+    conversation.inbox.members.uniq.each do |agent|
+      next if agent == sender
+      next if already_notified?(agent)
+
+      NotificationBuilder.new(
+        notification_type: 'participating_conversation_new_message',
+        user: agent,
+        account: account,
+        primary_actor: message.conversation,
+        secondary_actor: message
+      ).perform
+    end
+  end
+
+  # The user could already have been notified via a mention, assignment or participation,
+  # so we don't need to notify them again.
   def already_notified?(user)
     conversation.notifications.exists?(user: user, secondary_actor: message)
   end

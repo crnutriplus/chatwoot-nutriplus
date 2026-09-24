@@ -1,4 +1,6 @@
 class Messages::Instagram::BaseMessageBuilder < Messages::Messenger::MessageBuilder
+  include Messages::Instagram::NutriplusExtensions
+
   attr_reader :messaging
 
   def initialize(messaging, inbox, outgoing_echo: false)
@@ -14,6 +16,8 @@ class Messages::Instagram::BaseMessageBuilder < Messages::Messenger::MessageBuil
     ActiveRecord::Base.transaction do
       build_message
     end
+
+    process_waze_shared_location
   rescue StandardError => e
     handle_error(e)
   end
@@ -98,14 +102,19 @@ class Messages::Instagram::BaseMessageBuilder < Messages::Messenger::MessageBuil
     # Therefore, we need to check if the message already exists before creating it.
     return if message_already_exists?
 
+    prepare_location_attachment
+
     return if message_content.blank? && all_unsupported_files?
 
     @message = conversation.messages.create!(message_params)
+    persist_meta_referral
     save_story_id
 
     attachments.each do |attachment|
       process_attachment(attachment)
     end
+
+    sync_contact_location
   end
 
   def save_story_id
@@ -169,6 +178,7 @@ class Messages::Instagram::BaseMessageBuilder < Messages::Messenger::MessageBuil
 
     params[:content_attributes][:external_echo] = true if @outgoing_echo
     params[:content_attributes][:is_unsupported] = true if message_is_unsupported?
+    params[:content_attributes][:referral] = meta_referral if !@outgoing_echo && meta_referral.present?
     params
   end
 
@@ -188,6 +198,10 @@ class Messages::Instagram::BaseMessageBuilder < Messages::Messenger::MessageBuil
     attachments_type = attachments.pluck(:type).uniq.first
     unsupported_file_type?(attachments_type)
   end
+
+  def prepare_location_attachment; end
+
+  def sync_contact_location; end
 
   def handle_error(error)
     ChatwootExceptionTracker.new(error, account: @inbox.account).capture_exception

@@ -1,4 +1,5 @@
 <script>
+import nutriplusAPI from 'dashboard/api/nutriplus';
 import LoadingState from 'dashboard/components/widgets/LoadingState.vue';
 
 const FETCH_INFO_MESSAGE = 'chatwoot-dashboard-app:fetch-info';
@@ -85,15 +86,47 @@ export default {
     this.themeObserver.disconnect();
   },
   methods: {
-    triggerEvent(event) {
+    async triggerEvent(event) {
       if (!this.isVisible) return;
-      if (event.data !== FETCH_INFO_MESSAGE) return;
+
+      if (event.data === FETCH_INFO_MESSAGE) {
+        const frameIndex = this.config.findIndex((_, index) => {
+          const frameElement = document.getElementById(this.getFrameId(index));
+          return frameElement?.contentWindow === event.source;
+        });
+
+        if (frameIndex >= 0) this.sendContext(frameIndex);
+        return;
+      }
+
+      if (event.data !== 'nutriplus-dashboard-app:ready') return;
 
       const frameIndex = this.config.findIndex((_, index) => {
+        if (!this.isNutriplusFrame(index)) return false;
+
         const frameElement = document.getElementById(this.getFrameId(index));
-        return frameElement?.contentWindow === event.source;
+
+        if (
+          !frameElement?.contentWindow ||
+          event.source !== frameElement.contentWindow
+        ) {
+          return false;
+        }
+
+        try {
+          const allowedOrigin = new URL(
+            window.chatwootConfig.nutriplusDashboardAppURL
+          ).origin;
+
+          return event.origin === allowedOrigin;
+        } catch {
+          return false;
+        }
       });
-      if (frameIndex >= 0) this.sendContext(frameIndex);
+
+      if (frameIndex >= 0) {
+        await this.bootstrapNutriplus(frameIndex);
+      }
     },
     onThemeChange() {
       const theme = getCurrentTheme();
@@ -121,6 +154,48 @@ export default {
       frameElement.contentWindow.postMessage(JSON.stringify(eventData), '*');
       this.iframeLoading = false;
     },
+    isNutriplusFrame(index) {
+      const allowedURL = window.chatwootConfig?.nutriplusDashboardAppURL;
+      const frameURL = this.config[index]?.url;
+      return Boolean(allowedURL && frameURL === allowedURL);
+    },
+    async bootstrapNutriplus(index) {
+      if (!this.isNutriplusFrame(index)) return;
+
+      const frameElement = document.getElementById(this.getFrameId(index));
+      if (!frameElement?.contentWindow) return;
+
+      let targetOrigin;
+      try {
+        targetOrigin = new URL(window.chatwootConfig.nutriplusDashboardAppURL)
+          .origin;
+      } catch {
+        return;
+      }
+
+      const conversationId = this.currentChat?.id;
+      if (conversationId == null) return;
+
+      try {
+        const { token } = await nutriplusAPI.bootstrap(conversationId);
+        if (!token) return;
+
+        const eventData = {
+          event: 'nutriplus-dashboard-bootstrap',
+          data: { token },
+        };
+
+        frameElement.contentWindow.postMessage(
+          JSON.stringify(eventData),
+          targetOrigin
+        );
+      } catch {
+        // Keep the Dashboard App usable if the NutriPlus bootstrap fails.
+      }
+    },
+    onIframeLoad(index) {
+      this.sendContext(index);
+    },
   },
 };
 </script>
@@ -142,7 +217,7 @@ export default {
         v-if="configItem.type === 'frame' && configItem.url"
         :id="getFrameId(index)"
         :src="configItem.url"
-        @load="() => sendContext(index)"
+        @load="() => onIframeLoad(index)"
       />
     </div>
   </div>

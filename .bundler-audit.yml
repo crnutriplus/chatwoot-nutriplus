@@ -24,3 +24,5 @@ ignore:
   # No Rails 7.1 patch for this Active Storage advisory; mitigated locally.
   # Remove once on Rails 7.2.3.1+.
   - CVE-2026-66066
+  # ruby_llm advisory targets Ruby 3.1.x; this project uses Ruby 3.4.4.
+  - CVE-2026-67991

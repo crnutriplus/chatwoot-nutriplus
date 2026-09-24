@@ -50,6 +50,7 @@ class Facebook::SendOnFacebookService < Base::SendOnChannelService
       message: fb_text_message_payload
     }
 
+    add_reply_to(params)
     merge_human_agent_tag(params)
   end
 
@@ -91,7 +92,14 @@ class Facebook::SendOnFacebookService < Base::SendOnChannelService
       }
     }
 
+    add_reply_to(params)
     merge_human_agent_tag(params)
+  end
+
+  def add_reply_to(params)
+    return if message.content_attributes['in_reply_to_external_id'].blank?
+
+    params[:reply_to] = { mid: message.content_attributes['in_reply_to_external_id'] }
   end
 
   def merge_human_agent_tag(params)

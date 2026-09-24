@@ -25,6 +25,8 @@ class Messages::Facebook::MessageBuilder < Messages::Messenger::MessageBuilder
       build_contact_inbox
       build_message
     end
+
+    process_waze_shared_location
   rescue Koala::Facebook::AuthenticationError => e
     Rails.logger.warn("Facebook authentication error for inbox: #{@inbox.id} with error: #{e.message}")
     Rails.logger.error e
@@ -36,6 +38,17 @@ class Messages::Facebook::MessageBuilder < Messages::Messenger::MessageBuilder
 
   private
 
+  def process_waze_shared_location
+    return if @message.blank?
+
+    SharedLocations::WazeMessageService.new(
+      message: @message,
+      contact: @contact_inbox.contact,
+      content: response.content,
+      shared_at: response.time_stamp
+    ).perform
+  end
+
   def build_contact_inbox
     @contact_inbox = ::ContactInboxWithContactBuilder.new(
       source_id: @sender_id,
@@ -46,6 +59,7 @@ class Messages::Facebook::MessageBuilder < Messages::Messenger::MessageBuilder
 
   def build_message
     @message = conversation.messages.create!(message_params)
+    persist_meta_referral
 
     @attachments.each do |attachment|
       process_attachment(attachment)
@@ -119,6 +133,7 @@ class Messages::Facebook::MessageBuilder < Messages::Messenger::MessageBuilder
       in_reply_to_external_id: response.in_reply_to_external_id
     }
     content_attributes[:external_echo] = true if @outgoing_echo
+    content_attributes[:referral] = response.referral if !@outgoing_echo && response.referral.present?
 
     {
       account_id: conversation.account_id,
@@ -130,6 +145,16 @@ class Messages::Facebook::MessageBuilder < Messages::Messenger::MessageBuilder
       content_attributes: content_attributes,
       sender: @outgoing_echo ? nil : @contact_inbox.contact
     }
+  end
+
+  def persist_meta_referral
+    return if @outgoing_echo || response.referral.blank?
+
+    Nutriplus::MetaReferralAttributionService.new(
+      conversation: conversation,
+      contact: @contact_inbox.contact,
+      referral: response.referral
+    ).perform
   end
 
   def process_contact_params_result(result)
