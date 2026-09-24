@@ -23,35 +23,13 @@ class Nutriplus::MetaAdEnrichmentService
   end
 
   def perform
-    return result(false, :missing_ad_id) if @ad_id.blank?
-    return result(false, :invalid_ad_id) unless @ad_id.match?(/\A\d+\z/)
-    return result(false, :stale_attribution) unless current_ad_matches?
+    validation = validation_result
+    return validation if validation
 
-    token = resolved_access_token
-    return missing_token_result if token.blank?
+    response = fetch_ad(@token)
+    raise_transient_error(response) if transient_response?(response)
 
-    response = fetch_ad(token)
-    raise TransientError, "Meta Graph API returned HTTP #{response.code}" if TRANSIENT_HTTP_CODES.include?(response.code)
-
-    return graph_error_result(response) unless response.success?
-
-    data = response.parsed_response
-    return result(false, :invalid_response) unless data.is_a?(Hash)
-    return result(false, :ad_id_mismatch) unless data['id'].to_s == @ad_id
-
-    refresh_conversation
-    return result(false, :stale_attribution) unless current_ad_matches?
-
-    updates = enrichment_attributes(data)
-    persist_updates(updates)
-
-    {
-      enriched: true,
-      ad_id: @ad_id,
-      adset_id: updates['meta_adset_id'],
-      campaign_id: updates['meta_campaign_id'],
-      creative_id: updates['meta_creative_id']
-    }.compact
+    handle_response(response)
   rescue Net::OpenTimeout, Net::ReadTimeout, SocketError, Errno::ECONNRESET, Errno::ECONNREFUSED => e
     raise TransientError, e.message
   rescue TransientError
@@ -65,6 +43,61 @@ class Nutriplus::MetaAdEnrichmentService
   end
 
   private
+
+  def validation_result
+    return result(false, :missing_ad_id) if @ad_id.blank?
+    return result(false, :invalid_ad_id) unless @ad_id.match?(/\A\d+\z/)
+    return result(false, :stale_attribution) unless current_ad_matches?
+
+    @token = resolved_access_token
+    return missing_token_result if @token.blank?
+
+    nil
+  end
+
+  def handle_response(response)
+    return graph_error_result(response) unless response.success?
+
+    data = response.parsed_response
+    validation = response_validation_result(data)
+    return validation if validation
+
+    persist_enrichment(data)
+  end
+
+  def response_validation_result(data)
+    return result(false, :invalid_response) unless data.is_a?(Hash)
+    return result(false, :ad_id_mismatch) unless data['id'].to_s == @ad_id
+
+    nil
+  end
+
+  def persist_enrichment(data)
+    refresh_conversation
+    return result(false, :stale_attribution) unless current_ad_matches?
+
+    updates = enrichment_attributes(data)
+    persist_updates(updates)
+    success_result(updates)
+  end
+
+  def success_result(updates)
+    {
+      enriched: true,
+      ad_id: @ad_id,
+      adset_id: updates['meta_adset_id'],
+      campaign_id: updates['meta_campaign_id'],
+      creative_id: updates['meta_creative_id']
+    }.compact
+  end
+
+  def transient_response?(response)
+    TRANSIENT_HTTP_CODES.include?(response.code)
+  end
+
+  def raise_transient_error(response)
+    raise TransientError, "Meta Graph API returned HTTP #{response.code}"
+  end
 
   def fetch_ad(token)
     HTTParty.get(
