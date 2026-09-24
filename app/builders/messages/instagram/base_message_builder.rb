@@ -1,4 +1,6 @@
 class Messages::Instagram::BaseMessageBuilder < Messages::Messenger::MessageBuilder
+  include Messages::Instagram::NutriplusExtensions
+
   attr_reader :messaging
 
   def initialize(messaging, inbox, outgoing_echo: false)
@@ -21,17 +23,6 @@ class Messages::Instagram::BaseMessageBuilder < Messages::Messenger::MessageBuil
   end
 
   private
-
-  def process_waze_shared_location
-    return if @message.blank?
-
-    SharedLocations::WazeMessageService.new(
-      message: @message,
-      contact: contact,
-      content: message_content,
-      shared_at: @messaging[:timestamp]
-    ).perform
-  end
 
   def attachments
     @messaging[:message][:attachments] || {}
@@ -189,24 +180,6 @@ class Messages::Instagram::BaseMessageBuilder < Messages::Messenger::MessageBuil
     params[:content_attributes][:is_unsupported] = true if message_is_unsupported?
     params[:content_attributes][:referral] = meta_referral if !@outgoing_echo && meta_referral.present?
     params
-  end
-
-  def meta_referral
-    Nutriplus::MetaReferralAttributionService.sanitize(
-      @messaging[:referral],
-      channel: :instagram
-    )
-  end
-
-  def persist_meta_referral
-    return if @outgoing_echo
-
-    Nutriplus::MetaReferralAttributionService.capture(
-      conversation: conversation,
-      contact: contact,
-      referral: @messaging[:referral],
-      channel: :instagram
-    )
   end
 
   def message_already_exists?
