@@ -23,19 +23,20 @@ RSpec.describe SharedLocations::WazeMessageService do
       title: 'Farmacia Carrizal',
       city: 'Carrizal, Puntarenas',
       map_url: 'https://maps.google.com/?q=9.978192,-84.764175',
-      resolution_source: 'calculated_location'
+      resolution_source: 'calculated_location',
+      resolution_provider: 'waze'
     }
   end
 
   let(:resolver) do
     instance_double(
-      SharedLocations::WazeShareDriveResolver,
+      SharedLocations::LocationResolver,
       perform: location
     )
   end
 
   before do
-    allow(SharedLocations::WazeShareDriveResolver)
+    allow(SharedLocations::LocationResolver)
       .to receive(:new)
       .and_return(resolver)
   end
@@ -94,6 +95,60 @@ RSpec.describe SharedLocations::WazeMessageService do
     expect(sync_service).to receive(:perform)
 
     perform
+  end
+
+  it 'uses Instagram as the contact source for deterministic coordinates received on Instagram' do
+    location[:resolution_provider] = 'coordinates'
+
+    instagram_inbox = instance_double(
+      Inbox,
+      channel_type: 'Channel::Instagram'
+    )
+
+    allow(message)
+      .to receive(:inbox)
+      .and_return(instagram_inbox)
+
+    sync_service = instance_double(
+      SharedLocations::ContactLocationSyncService,
+      perform: true
+    )
+
+    expect(SharedLocations::ContactLocationSyncService)
+      .to receive(:new)
+      .with(
+        contact: contact,
+        location: instance_of(Attachment),
+        shared_at: instance_of(ActiveSupport::TimeWithZone),
+        source: 'instagram'
+      )
+      .and_return(sync_service)
+
+    expect(sync_service).to receive(:perform)
+
+    perform
+  end
+
+  it 'does not write an unsupported contact source for deterministic coordinates from Facebook' do
+    location[:resolution_provider] = 'coordinates'
+
+    facebook_inbox = instance_double(
+      Inbox,
+      channel_type: 'Channel::FacebookPage'
+    )
+
+    allow(message)
+      .to receive(:inbox)
+      .and_return(facebook_inbox)
+
+    expect(SharedLocations::ContactLocationSyncService)
+      .not_to receive(:new)
+
+    perform
+
+    expect(
+      message.reload.attachments.where(file_type: :location).count
+    ).to eq(1)
   end
 
   it 'does not create duplicate location attachments' do
