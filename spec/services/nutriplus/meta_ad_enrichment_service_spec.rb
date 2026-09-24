@@ -54,17 +54,21 @@ describe Nutriplus::MetaAdEnrichmentService do
     ).perform
   end
 
-  it 'enriches the conversation with ad hierarchy and visual metadata' do
+  def stub_graph_response(status:, body:)
     stub_request(:get, endpoint)
       .with(
         query: { fields: described_class::GRAPH_FIELDS },
         headers: { 'Authorization' => 'Bearer ads-read-token' }
       )
       .to_return(
-        status: 200,
-        body: response_body.to_json,
+        status: status,
+        body: body.to_json,
         headers: { 'Content-Type' => 'application/json' }
       )
+  end
+
+  it 'enriches the conversation with ad hierarchy and visual metadata' do
+    stub_graph_response(status: 200, body: response_body)
 
     result = perform
 
@@ -91,13 +95,7 @@ describe Nutriplus::MetaAdEnrichmentService do
 
   it 'does not overwrite an existing attribution snapshot' do
     conversation.custom_attributes['meta_ad_name'] = 'Original Omega Teen'
-
-    stub_request(:get, endpoint)
-      .to_return(
-        status: 200,
-        body: response_body.merge(name: 'Renamed Omega Teen').to_json,
-        headers: { 'Content-Type' => 'application/json' }
-      )
+    stub_graph_response(status: 200, body: response_body.merge(name: 'Renamed Omega Teen'))
 
     perform
 
@@ -114,7 +112,7 @@ describe Nutriplus::MetaAdEnrichmentService do
   end
 
   it 'raises a transient error for retryable Meta responses' do
-    stub_request(:get, endpoint).to_return(status: 503, body: '{}')
+    stub_graph_response(status: 503, body: {})
 
     expect { perform }.to raise_error(
       Nutriplus::MetaAdEnrichmentService::TransientError,
@@ -123,12 +121,10 @@ describe Nutriplus::MetaAdEnrichmentService do
   end
 
   it 'does not persist data when Meta returns a non-retryable error' do
-    stub_request(:get, endpoint)
-      .to_return(
-        status: 400,
-        body: { error: { code: 100, type: 'OAuthException', message: 'Unsupported get request' } }.to_json,
-        headers: { 'Content-Type' => 'application/json' }
-      )
+    stub_graph_response(
+      status: 400,
+      body: { error: { code: 100, type: 'OAuthException', message: 'Unsupported get request' } }
+    )
 
     expect(perform).to eq(enriched: false, reason: :graph_error)
     expect(conversation.custom_attributes).to eq('meta_ad_id' => ad_id)
