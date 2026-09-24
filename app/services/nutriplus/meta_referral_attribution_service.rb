@@ -40,6 +40,7 @@ class Nutriplus::MetaReferralAttributionService
 
     persist_contact_first_touch(attribution[:ad_id])
     persist_conversation_attribution(attribution)
+    enqueue_ad_enrichment(attribution[:ad_id])
 
     {
       attributed: true,
@@ -87,6 +88,12 @@ class Nutriplus::MetaReferralAttributionService
     @conversation.update!(
       custom_attributes: attributes.merge(updates)
     )
+  end
+
+  def enqueue_ad_enrichment(ad_id)
+    return unless @conversation.respond_to?(:id) && @conversation.id.present?
+
+    Nutriplus::MetaAdEnrichmentJob.perform_later(@conversation.id, ad_id)
   end
 
   def conversation_updates(attributes, attribution)
