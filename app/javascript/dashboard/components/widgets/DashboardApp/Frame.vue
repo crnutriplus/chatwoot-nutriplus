@@ -167,9 +167,8 @@ export default {
 
       let targetOrigin;
       try {
-        targetOrigin = new URL(
-          window.chatwootConfig.nutriplusDashboardAppURL
-        ).origin;
+        targetOrigin = new URL(window.chatwootConfig.nutriplusDashboardAppURL)
+          .origin;
       } catch {
         return;
       }

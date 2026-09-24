@@ -99,12 +99,16 @@ describe('DashboardApp Frame NutriPlus bootstrap', () => {
 
   it('does not issue a bootstrap token from fetch-info messages', async () => {
     const postMessage = vi.fn();
+    const contentWindow = { postMessage };
     vi.spyOn(document, 'getElementById').mockReturnValue({
-      contentWindow: { postMessage },
+      contentWindow,
     });
     const wrapper = mountFrame([{ url: ALLOWED_URL }]);
 
-    wrapper.vm.triggerEvent({ data: 'chatwoot-dashboard-app:fetch-info' });
+    wrapper.vm.triggerEvent({
+      data: 'chatwoot-dashboard-app:fetch-info',
+      source: contentWindow,
+    });
     await Promise.resolve();
 
     expect(nutriplusAPI.bootstrap).not.toHaveBeenCalled();
