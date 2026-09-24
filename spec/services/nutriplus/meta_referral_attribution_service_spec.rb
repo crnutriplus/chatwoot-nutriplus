@@ -3,10 +3,11 @@ require 'rails_helper'
 describe Nutriplus::MetaReferralAttributionService do
   let(:record_class) do
     Class.new do
-      attr_accessor :custom_attributes
+      attr_accessor :custom_attributes, :id
 
-      def initialize(attributes = {})
+      def initialize(attributes = {}, id: nil)
         @custom_attributes = attributes
+        @id = id
       end
 
       def update!(custom_attributes:)
@@ -38,6 +39,18 @@ describe Nutriplus::MetaReferralAttributionService do
     expect(conversation.custom_attributes).to include(
       'meta_ad_id' => 'META-AD-100',
       'meta_referral_source' => 'ADS'
+    )
+  end
+
+  it 'enqueues ad enrichment after persisting attribution on a real conversation' do
+    conversation.id = 145
+
+    expect(Nutriplus::MetaAdEnrichmentJob).to receive(:perform_later).with(145, '52602950547742')
+
+    perform(
+      'source' => 'ADS',
+      'ad_id' => '52602950547742',
+      'type' => 'OPEN_THREAD'
     )
   end
 
